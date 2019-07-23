@@ -93,7 +93,7 @@ public class EsUtilController {
      */
     @GetMapping("deleteIndex")
     public Object deleteIndex() throws IOException {
-        return esUtil.deleteAll("product");
+        return esUtil.deleteIndex("product");
     }
 
     /**
@@ -112,9 +112,9 @@ public class EsUtilController {
             Product product = new Product();
             product.setId(Long.valueOf(String.valueOf(i+1)));
             product.setName(nameStr.split(",")[i]);
-            product.setDescribe(descStr.split(",")[i]);
+            product.setSubTitle(descStr.split(",")[i]);
             product.setPrice(new BigDecimal(priceStr.split(",")[i]));
-            resultList.add(esUtil.addById("product",product,String.valueOf(product.getId())));
+            resultList.add(esUtil.addIndex("goods",product,String.valueOf(product.getId())));
         }
         //异步保存
 //        esClient.indexAsync(indexRequest, RequestOptions.DEFAULT, new ActionListener<IndexResponse>() {
@@ -145,9 +145,9 @@ public class EsUtilController {
         Product product = new Product();
         product.setId(1L);
         product.setName("华为手机P30");
-        product.setDescribe("音乐手机拍照手机高端智能机超长待机旗舰系列手机");
+        product.setSubTitle("音乐手机拍照手机高端智能机超长待机旗舰系列手机");
         product.setPrice(new BigDecimal("5699"));
-        return esUtil.updateById("product", product, "1");
+        return esUtil.updateIndex("product", product, "1");
     }
 
     /**
@@ -158,7 +158,7 @@ public class EsUtilController {
      */
     @GetMapping("/del/{id}")
     public Object del(@PathVariable("id") String id) throws IOException {
-        return esUtil.deleteById("product",id);
+        return esUtil.deleteIndex("product",id);
     }
 
     /**
@@ -169,7 +169,7 @@ public class EsUtilController {
      */
     @GetMapping("/get/{id}")
     public Object getOne(@PathVariable("id") String id) throws IOException {
-        return esUtil.getById("product",id,Product.class);
+        return esUtil.getIndex("product",id,Product.class);
     }
 
     /**

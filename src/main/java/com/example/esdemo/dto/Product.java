@@ -15,9 +15,9 @@ public class Product {
      */
     private String name;
     /**
-     * 商品描述
+     * 商品短标题
      */
-    private String describe;
+    private String subTitle;
     /**
      * 商品价格
      */
@@ -51,12 +51,12 @@ public class Product {
         this.name = name;
     }
 
-    public String getDescribe() {
-        return describe;
+    public String getSubTitle() {
+        return subTitle;
     }
 
-    public void setDescribe(String describe) {
-        this.describe = describe;
+    public void setSubTitle(String subTitle) {
+        this.subTitle = subTitle;
     }
 
     public BigDecimal getPrice() {

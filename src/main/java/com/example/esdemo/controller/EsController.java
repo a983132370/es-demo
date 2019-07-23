@@ -134,7 +134,7 @@ public class EsController {
             Product product = new Product();
             product.setId(Long.valueOf(String.valueOf(i+1)));
             product.setName(nameStr.split(",")[i]);
-            product.setDescribe(descStr.split(",")[i]);
+            product.setSubTitle(descStr.split(",")[i]);
             product.setPrice(new BigDecimal(priceStr.split(",")[i]));
             //索引请求对象
             IndexRequest indexRequest = new IndexRequest("product","product",String.valueOf(product.getId()));
@@ -177,7 +177,7 @@ public class EsController {
         Product product = new Product();
         product.setId(1L);
         product.setName("华为手机P30");
-        product.setDescribe("音乐手机拍照手机高端智能机超长待机旗舰系列手机");
+        product.setSubTitle("音乐手机拍照手机高端智能机超长待机旗舰系列手机");
         product.setPrice(new BigDecimal("5699"));
         updateRequest.doc(JsonUtils.toJson(product),XContentType.JSON);
         UpdateResponse update = esClient.update(updateRequest,RequestOptions.DEFAULT);

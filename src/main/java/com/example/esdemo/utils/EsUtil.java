@@ -5,6 +5,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -31,19 +32,44 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 基于 RestHighLevelClient,ElasticSearch 6.6.2 简易工具类
- * create by zhu
- */
 @Component
 public class EsUtil {
     private final Logger log = LoggerFactory.getLogger(this.getClass());
     @Autowired
     RestHighLevelClient esClient;
+
+    /**
+     * 条件构造器
+     * @param <T>
+     */
+    public interface QueryConditionBuilder<T>{
+        /**
+         * //source源字段过虑,指定结果中所包括的字段有哪些
+         *             searchSourceBuilder.fetchSource(new String[]{"name","price"}, new String[]{});
+         *             searchSourceBuilder.query(QueryBuilders.termQuery("name",name));
+         *
+         *             MultiMatchQueryBuilder multiMatchQueryBuilder = QueryBuilders.multiMatchQuery(text,
+         *                     "name", "describe")
+         *                     .minimumShouldMatch("50%");
+         *             multiMatchQueryBuilder.field("name",10);//提升boost
+         *             searchSourceBuilder.query(multiMatchQueryBuilder);
+         *
+         * //            布尔查询
+         *             BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+         *             //排序
+         *             searchSourceBuilder.sort(new FieldSortBuilder("id").order(SortOrder.DESC))
+         *                     .sort(new FieldSortBuilder("price").order(SortOrder.ASC));
+         * @param searchSourceBuilder
+         * @throws IOException
+         */
+        void doQueryCondition(SearchSourceBuilder searchSourceBuilder) throws IOException;
+    }
+
     /**
      * 分页查询 default return 10 rows
      * @param <T>           返回实体映射
@@ -57,7 +83,7 @@ public class EsUtil {
         return findPage(indexName, indexName, clazz,queryConditionBuilder);
     }
     /**
-     * 分页查询
+     * 分页查询 default return 10 rows
      * @param <T>                   返回实体映射
      * @param indexName             索引名称
      * @param clazz                 类
@@ -68,9 +94,10 @@ public class EsUtil {
      * @return
      * @throws IOException
      */
-    public <T> PageDto<T> findPage(String indexName, Class<T> clazz, QueryConditionBuilder queryConditionBuilder, int page, int pageSize) throws IOException {
+    public <T> PageDto<T> findPage(String indexName, Class<T> clazz, QueryConditionBuilder queryConditionBuilder, Integer page, Integer pageSize) throws IOException {
         return findPage(indexName, indexName, clazz,queryConditionBuilder,page,pageSize);
     }
+
     /**
      * 分页查询 default return 10 rows
      * @param <T>           返回实体映射
@@ -82,27 +109,9 @@ public class EsUtil {
      * @throws IOException
      */
     public <T> PageDto<T> findPage(String indexName, String type, Class<T> clazz, QueryConditionBuilder queryConditionBuilder) throws IOException {
-        return findPage( indexName,  type, clazz,  queryConditionBuilder,1,10);
+        return findPage( indexName,  type, clazz,  queryConditionBuilder,0,10);
     }
-    /**
-     * 按条件查询单个数据
-     * @param <T>           返回实体映射
-     * @param indexName     索引名称
-     * @param clazz         类
-     * @param queryConditionBuilder 条件构造器
-     * @return
-     * @throws IOException
-     */
-    public <T> T findOne(String indexName,   Class<T> clazz, QueryConditionBuilder queryConditionBuilder) throws IOException {
-        return findOne( indexName,  indexName, clazz,  queryConditionBuilder);
-    }
-    public <T> T findOne(String indexName, String type, Class<T> clazz, QueryConditionBuilder queryConditionBuilder) throws IOException {
-        PageDto<T> pageDto = findPage( indexName,  type, clazz,  queryConditionBuilder,1,1);
-        if(pageDto.getList() != null && pageDto.getList().size()>0){
-            return pageDto.getList().get(0);
-        }
-        return null;
-    }
+
     /**
      * 分页查询 default return 10 rows
      * @param <T>                   返回实体映射
@@ -116,18 +125,24 @@ public class EsUtil {
      * @return
      * @throws IOException
      */
-    private <T> PageDto<T> findPage(String indexName, String type, Class<T> clazz, QueryConditionBuilder queryConditionBuilder, int page, int pageSize) throws IOException {
+    private <T> PageDto<T> findPage(String indexName, String type, Class<T> clazz, QueryConditionBuilder queryConditionBuilder, Integer page, Integer pageSize) throws IOException {
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.types(type);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         queryConditionBuilder.doQueryCondition(searchSourceBuilder);
         //分页查询，设置起始下标，
+        if(page == null){
+            page = 1;
+        }
         if(page >= 1){page -= 1;}else {page=0;}
-        if(pageSize < 0){page = 10;}
+        if(pageSize == null || pageSize < 0){pageSize = 10;}
         //下标从0开始
         searchSourceBuilder.from(page * pageSize);
         //每页显示个数
         searchSourceBuilder.size(pageSize);
+//        searchSourceBuilder.query(QueryBuilders.matchAllQuery());
+//        //source源字段过虑,指定结果中所包括的字段有哪些
+//        searchSourceBuilder.fetchSource(new String[]{"name","price"}, new String[]{});
         searchRequest.source(searchSourceBuilder);
         SearchResponse response = esClient.search(searchRequest, RequestOptions.DEFAULT);
         /**
@@ -178,8 +193,8 @@ public class EsUtil {
      * @return
      * @throws IOException
      */
-    public <T> T getById(String indexName,String id,Class<T> clazz) throws IOException {
-        return getById( indexName, indexName, id, clazz);
+    public <T> T getIndex(String indexName,String id,Class<T> clazz) throws IOException {
+        return getIndex( indexName, indexName, id, clazz);
     }
     /**
      * 获取索引byId
@@ -191,7 +206,7 @@ public class EsUtil {
      * @return
      * @throws IOException
      */
-    public <T> T getById(String indexName,String type,String id,Class<T> clazz) throws IOException {
+    public <T> T getIndex(String indexName,String type,String id,Class<T> clazz) throws IOException {
         GetRequest request = new GetRequest(indexName).type(type).id(id);
         GetResponse response = esClient.get(request, RequestOptions.DEFAULT);
         if(response.isExists()){
@@ -206,7 +221,7 @@ public class EsUtil {
      * @return
      * @throws IOException
      */
-    public boolean deleteById(String indexName,String id) throws IOException {
+    public boolean deleteIndex(String indexName,String id) throws IOException {
         DeleteRequest request = new DeleteRequest(indexName, indexName, id);
         DeleteResponse response = esClient.delete(request, RequestOptions.DEFAULT);
         return DeleteResponse.Result.DELETED.equals(response.getResult());
@@ -219,7 +234,7 @@ public class EsUtil {
      * @return
      * @throws IOException
      */
-    public boolean deleteById(String indexName,String type,String id) throws IOException {
+    public boolean deleteIndex(String indexName,String type,String id) throws IOException {
         DeleteRequest request = new DeleteRequest(indexName, type, id);
         DeleteResponse response = esClient.delete(request, RequestOptions.DEFAULT);
         return DeleteResponse.Result.DELETED.equals(response.getResult());
@@ -232,8 +247,8 @@ public class EsUtil {
      * @return
      * @throws IOException
      */
-    public boolean updateById(String indexName,Object dto,String id) throws IOException {
-        return updateById( indexName, indexName, dto, id);
+    public boolean updateIndex(String indexName,Object dto,String id) throws IOException {
+        return updateIndex( indexName, indexName, dto, id);
     }
     /**
      * 修改索引 即修改数据
@@ -244,7 +259,7 @@ public class EsUtil {
      * @return
      * @throws IOException
      */
-    public boolean updateById(String indexName,String type,Object dto,String id) throws IOException {
+    public boolean updateIndex(String indexName,String type,Object dto,String id) throws IOException {
         Assert.notNull(dto,"es 修改 失败 ! dto 不能为空");
         //索引请求对象
         UpdateRequest updateRequest = new UpdateRequest(indexName, type,
@@ -252,7 +267,7 @@ public class EsUtil {
         //指定索引文档内容
         updateRequest.doc(JsonUtils.toJson(dto), XContentType.JSON);
         //索引修改响应对象
-        UpdateResponse update = esClient.update(updateRequest,RequestOptions.DEFAULT);
+        UpdateResponse update = esClient.update(updateRequest, RequestOptions.DEFAULT);
         //获取响应结果
         RestStatus status = update.status();
         return RestStatus.OK.equals(status);
@@ -262,22 +277,22 @@ public class EsUtil {
      * @param indexName 索引库名称
      * @return
      */
-    public boolean addById(String indexName,Object dto,String id) throws IOException {
-        return addById( indexName, indexName, dto, id);
+    public boolean addIndex(String indexName,Object dto,String id) throws IOException {
+        return addIndex( indexName, indexName, dto, id);
     }
     /**
      * 添加索引 即保存数据
      * @param indexName 索引库名称
      * @return
      */
-    public boolean addById(String indexName,String type,Object dto,String id) throws IOException {
+    public boolean addIndex(String indexName,String type,Object dto,String id) throws IOException {
         Assert.notNull(dto,"es 保存失败 ! dto 不能为空");
         //索引请求对象
         IndexRequest indexRequest = new IndexRequest(indexName,type,id);
         //指定索引文档内容
         indexRequest.source(JsonUtils.toJson(dto), XContentType.JSON);
         //索引响应对象
-        IndexResponse indexResponse = esClient.index(indexRequest,RequestOptions.DEFAULT);
+        IndexResponse indexResponse = esClient.index(indexRequest, RequestOptions.DEFAULT);
         //获取响应结果
         DocWriteResponse.Result result = indexResponse.getResult();
         return DocWriteResponse.Result.CREATED.equals(result);
@@ -287,7 +302,7 @@ public class EsUtil {
      * @param indexName 索引库名称
      * @return
      */
-    public boolean deleteAll(String indexName){
+    public boolean deleteIndex(String indexName){
         //删除索引请求对象
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
         //删除索引
@@ -368,30 +383,20 @@ public class EsUtil {
         System.out.println(acknowledged);
         return acknowledged;
     }
+
     /**
-     * 条件构造器
-     * @param <T>
+     * 是否存在索引库
+     * @param indexName
+     * @return
      */
-    public interface QueryConditionBuilder<T>{
-        /**
-         * //source源字段过虑,指定结果中所包括的字段有哪些
-         *             searchSourceBuilder.fetchSource(new String[]{"name","price"}, new String[]{});
-         *             searchSourceBuilder.query(QueryBuilders.termQuery("name",name));
-         *
-         *             MultiMatchQueryBuilder multiMatchQueryBuilder = QueryBuilders.multiMatchQuery(text,
-         *                     "name", "describe")
-         *                     .minimumShouldMatch("50%");
-         *             multiMatchQueryBuilder.field("name",10);//提升boost
-         *             searchSourceBuilder.query(multiMatchQueryBuilder);
-         *
-         * //            布尔查询
-         *             BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-         *             //排序
-         *             searchSourceBuilder.sort(new FieldSortBuilder("id").order(SortOrder.DESC))
-         *                     .sort(new FieldSortBuilder("price").order(SortOrder.ASC));
-         * @param searchSourceBuilder
-         * @throws IOException
-         */
-        void doQueryCondition(SearchSourceBuilder searchSourceBuilder) throws IOException;
+    public boolean indexExists(String indexName) {
+        GetIndexRequest request = new GetIndexRequest();
+        request.indices(indexName);
+        try {
+            return esClient.indices().exists(request, RequestOptions.DEFAULT);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 }
